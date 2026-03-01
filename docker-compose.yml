@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  segmentator:
+    build: .
+    container_name: segmentator
+    ports:
+      - "8000:8000" # backend
+      - "8501:8501" # frontend
+    stdin_open: true
+    tty: true

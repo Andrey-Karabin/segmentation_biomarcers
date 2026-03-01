@@ -1,0 +1,11 @@
+pandas
+numpy
+torch
+opencv-python
+scikit-image
+transformers
+matplotlib
+fastapi
+uvicorn
+python-multipart
+streamlit
