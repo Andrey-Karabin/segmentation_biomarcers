@@ -15,10 +15,10 @@ from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 
 # CONFIG
 
-DATASET_CSV = r"D:\aspirantura\PROF\dataset_final_clean.csv"
-AUGMENT_ROOT = r"D:\aspirantura\PROF\augment"
-FOLD_TEMPLATE = r"D:\aspirantura\PROF\train_article_fold_{}.csv"
-OUTPUT_ROOT = r"D:\aspirantura\PROF\npy_article_fold"
+DATASET_CSV = r"/content/drive/MyDrive/aspirantura/PROF/dataset_final_clean.csv"
+AUGMENT_ROOT = r"/content/drive/MyDrive/aspirantura/PROF/augment"
+FOLD_TEMPLATE = r"/content/drive/MyDrive/aspirantura/PROF/train_article_fold_{}.csv"
+OUTPUT_ROOT = r"/content/drive/MyDrive/aspirantura/PROF/npy_article_fold"
 
 PATCH_SIZE = 512
 STRIDE_DEFAULT = 512
