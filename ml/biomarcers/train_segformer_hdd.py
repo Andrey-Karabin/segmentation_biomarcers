@@ -60,7 +60,7 @@ def dice_score_fast(preds, targets, ignore_index=config.IGNORE_INDEX):
 # Основная функция обучения
 
 def train_fold(train_folds, val_fold, patience=5):
-    # Загружаем CSV
+    # Загружае   CSV
     BASE_PATH = "/content/drive/MyDrive/aspirantura/PROF/npy_article_fold"
 
     for df in [df_train, df_val]:

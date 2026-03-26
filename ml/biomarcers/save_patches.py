@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split
 from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 
 
-# CONFIG
+#  CONFIG
 
 DATASET_CSV = r"/content/drive/MyDrive/aspirantura/PROF/dataset_final_clean.csv"
 AUGMENT_ROOT = r"/content/drive/MyDrive/aspirantura/PROF/augment"
