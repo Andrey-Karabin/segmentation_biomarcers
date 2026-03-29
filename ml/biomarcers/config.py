@@ -13,7 +13,7 @@ class Config():
     #: количество эпох обучения
     EPOCHS = 20
     #: на чем идет обучение
-    DEVICE = "cuda"
+    DEVICE = "cpu"
     #: Классы
     CLASSES = {
         "ERROR": (211, 255, 5),
