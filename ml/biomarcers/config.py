@@ -45,3 +45,11 @@ class Config():
     IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
     CHECKPOINT_DIR = "ml/biomarcers/checkpoints_segformer_15hours"
+
+    @property
+    def DEVICE(self):
+        import torch
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    
+    #: количество GPU для DataParallel
+    N_GPUS = None  # None = использовать все доступные

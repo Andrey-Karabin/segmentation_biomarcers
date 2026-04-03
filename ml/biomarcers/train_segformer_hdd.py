@@ -12,8 +12,45 @@ from ml.biomarcers.config import Config
 from ml.biomarcers.dataloader import ImageMaskDataset
 from ml.biomarcers.utils_loss import TverskyLoss
 
+
+
 config = Config()
 torch.multiprocessing.set_start_method("spawn", force=True)
+
+def setup_multi_gpu(model):
+    """Настройка модели для использования всех доступных GPU"""
+    if torch.cuda.device_count() > 1:
+        print(f"🚀 Используем {torch.cuda.device_count()} GPU: {torch.cuda.get_device_name(0)}")
+        if torch.cuda.device_count() > 1:
+            print(f"   GPU 1: {torch.cuda.get_device_name(1)}")
+        model = torch.nn.DataParallel(model)
+    else:
+        print(f"📀 Используем одно устройство: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
+    return model
+
+def save_model_checkpoint(model, optimizer, epoch, loss, dice, path):
+    """Правильное сохранение чекпоинта для DataParallel"""
+    if isinstance(model, torch.nn.DataParallel):
+        state_dict = model.module.state_dict()
+    else:
+        state_dict = model.state_dict()
+    
+    torch.save({
+        "epoch": epoch,
+        "model_state_dict": state_dict,
+        "optimizer_state_dict": optimizer.state_dict(),
+        "loss": loss,
+        "val_dice": dice
+    }, path)
+
+def load_model_checkpoint(model, path):
+    """Правильная загрузка чекпоинта"""
+    checkpoint = torch.load(path)
+    if isinstance(model, torch.nn.DataParallel):
+        model.module.load_state_dict(checkpoint["model_state_dict"])
+    else:
+        model.load_state_dict(checkpoint["model_state_dict"])
+    return checkpoint
 
 # Dice score для мультикласса
 
@@ -98,6 +135,8 @@ def train_fold(train_folds, val_fold, patience=5):
         num_labels=config.NUM_CLASSES,
         ignore_mismatched_sizes=True
     ).to(config.DEVICE)
+
+    model = setup_multi_gpu(model, config.DEVICE)
 
     optimizer = torch.optim.AdamW([
         # Backbone: low LR
@@ -190,38 +229,21 @@ def train_fold(train_folds, val_fold, patience=5):
 
         # Сохраняем чекпоинт каждой эпохи
 
-        checkpoint_path = os.path.join(
-            checkpoint_dir, f"checkpoint_epoch_{epoch+1}.pth")
-        torch.save({
-            "epoch": epoch+1,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": epoch_loss,
-            "val_dice": avg_dice
-        }, checkpoint_path)
 
-        # Обновляем лучшую модель
+        checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch+1}.pth")
+        save_model_checkpoint(model, optimizer, epoch+1, epoch_loss, avg_dice, checkpoint_path)
 
         if avg_dice > best_dice:
             best_dice = avg_dice
             epochs_no_improve = 0
             best_model_path = os.path.join(checkpoint_dir, "best_model.pth")
-            torch.save({
-                "epoch": epoch+1,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "loss": epoch_loss,
-                "val_dice": avg_dice
-            }, best_model_path)
+            save_model_checkpoint(model, optimizer, epoch+1, epoch_loss, avg_dice, best_model_path)
             print(f"Best model updated! Dice: {best_dice:.4f}")
         else:
             epochs_no_improve += 1
 
-        # Early stopping
-
         if epochs_no_improve >= patience:
-            print(
-                f"Early stopping at epoch {epoch+1} (no improvement {patience} epochs).")
+            print(f"Early stopping at epoch {epoch+1} (no improvement {patience} epochs).")
             break
 
     print(f"Training finished. Best Dice: {best_dice:.4f}")
