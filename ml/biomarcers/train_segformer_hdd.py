@@ -98,11 +98,11 @@ def dice_score_fast(preds, targets, ignore_index=config.IGNORE_INDEX):
 
 def train_fold(train_folds, val_fold, patience=5):
     # Загружае   CSV
-    train_dfs = [pd.read_csv(f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{f}.csv") for f in train_folds]
+    train_dfs = [pd.read_csv(f"/kaggle/input/datasets/andreikarabin/data-filter2/aspirantura/PROF/npy_article_fold/train_article_fold_{f}.csv") for f in train_folds]
     df_train = pd.concat(train_dfs).reset_index(drop=True)
-    df_val = pd.read_csv(f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{val_fold}.csv")
+    df_val = pd.read_csv(f"/kaggle/input/datasets/andreikarabin/data-filter2/aspirantura/PROF/npy_article_fold/train_article_fold_{val_fold}.csv")
 
-    BASE_PATH = "/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold"
+    BASE_PATH = "/kaggle/input/datasets/andreikarabin/data-filter2/aspirantura/PROF/npy_article_fold"
 
     for df in [df_train, df_val]:
         df["image"] = df["image"].str.replace(
