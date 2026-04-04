@@ -20,12 +20,12 @@ torch.multiprocessing.set_start_method("spawn", force=True)
 def setup_multi_gpu(model):
     """Настройка модели для использования всех доступных GPU"""
     if torch.cuda.device_count() > 1:
-        print(f"🚀 Используем {torch.cuda.device_count()} GPU: {torch.cuda.get_device_name(0)}")
-        if torch.cuda.device_count() > 1:
-            print(f"   GPU 1: {torch.cuda.get_device_name(1)}")
+        print(f"🚀 Используем {torch.cuda.device_count()} GPU!")
+        for i in range(torch.cuda.device_count()):
+            print(f"   GPU {i}: {torch.cuda.get_device_name(i)}")
         model = torch.nn.DataParallel(model)
     else:
-        print(f"📀 Используем одно устройство: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
+        print(f"📀 Используем одно устройство: {torch.cuda.device_count()} GPU")
     return model
 
 def save_model_checkpoint(model, optimizer, epoch, loss, dice, path):
@@ -136,7 +136,7 @@ def train_fold(train_folds, val_fold, patience=5):
         ignore_mismatched_sizes=True
     ).to(config.DEVICE)
 
-    model = setup_multi_gpu(model, config.DEVICE)
+    model = setup_multi_gpu(model)
 
     optimizer = torch.optim.AdamW([
         # Backbone: low LR

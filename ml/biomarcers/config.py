@@ -11,7 +11,7 @@ class Config():
     #: размер батча
     BATCH_SIZE = 13
     #: количество эпох обучения
-    EPOCHS = 15
+    EPOCHS = 30
     #: на чем идет обучение
     DEVICE = "cuda"
     #: Классы
