@@ -9,7 +9,7 @@ class Config():
     #: перекрытие патча
     STRIDE = PATCH_SIZE // 2
     #: размер батча
-    BATCH_SIZE = 24
+    BATCH_SIZE = 13
     #: количество эпох обучения
     EPOCHS = 30
     #: на чем идет обучение
@@ -46,10 +46,10 @@ class Config():
 
     CHECKPOINT_DIR = "ml/biomarcers/checkpoints_segformer_15hours"
 
-    @property
-    def DEVICE(self):
-        import torch
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    
-    #: количество GPU для DataParallel
-    N_GPUS = None  # None = использовать все доступные
+#   @property
+#   def DEVICE(self):
+#       import torch
+#       return "cuda" if torch.cuda.is_available() else "cpu"
+#   
+#   #: количество GPU для DataParallel
+#   N_GPUS = None  # None = использовать все доступные
