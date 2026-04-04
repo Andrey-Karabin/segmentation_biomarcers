@@ -9,7 +9,7 @@ class Config():
     #: перекрытие патча
     STRIDE = PATCH_SIZE // 2
     #: размер батча
-    BATCH_SIZE = 22
+    BATCH_SIZE = 24
     #: количество эпох обучения
     EPOCHS = 30
     #: на чем идет обучение
