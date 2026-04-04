@@ -138,11 +138,18 @@ def train_fold(train_folds, val_fold, patience=5):
 
     model = setup_multi_gpu(model)
 
+    if isinstance(model, torch.nn.DataParallel):
+        encoder_params = model.module.segformer.encoder.parameters()
+        decoder_params = model.module.decode_head.parameters()
+    else:
+        encoder_params = model.segformer.encoder.parameters()
+        decoder_params = model.decode_head.parameters()
+    
     optimizer = torch.optim.AdamW([
-        # Backbone: low LR
-        {'params': model.segformer.encoder.parameters(), 'lr': 1e-5},
-        {'params': model.decode_head.parameters(), 'lr': 5e-4},        # Head: high LR
+        {'params': encoder_params, 'lr': 1e-5},
+        {'params': decoder_params, 'lr': 5e-4},
     ])
+
     gradient_accumulation_steps = 2
     num_training_steps = (len(train_loader) //
                           gradient_accumulation_steps) * config.EPOCHS
