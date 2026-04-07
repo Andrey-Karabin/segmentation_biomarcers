@@ -14,10 +14,10 @@ from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 
 
 #  CONFIG
-DATASET_CSV = r"/kaggle/input/datasets/andreikarabin/data10better/aspirantura/PROF/dataset_final_clean.csv"
-AUGMENT_ROOT = r"/kaggle/input/datasets/andreikarabin/data10better/aspirantura/PROF/augment"
-FOLD_TEMPLATE = r"/kaggle/input/datasets/andreikarabin/data10better/aspirantura/PROF/train_article_fold_{}.csv"
-OUTPUT_ROOT = r"/kaggle/input/datasets/andreikarabin/data10better/aspirantura/PROF/npy_article_fold"
+DATASET_CSV = r"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/dataset_final_clean.csv"
+AUGMENT_ROOT = r"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/augment"
+FOLD_TEMPLATE = r"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/train_article_fold_{}.csv"
+OUTPUT_ROOT = r"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold"
 
 PATCH_SIZE = 512
 STRIDE_DEFAULT = 512

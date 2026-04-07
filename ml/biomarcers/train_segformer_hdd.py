@@ -69,13 +69,13 @@ def train_fold(rank, world_size, train_folds, val_fold, patience=5):
     # Загрузка данных
     train_dfs = []
     for f in train_folds:
-        csv_path = f"/kaggle/input/datasets/andreikarabin/data10better/aspirantura/PROF/npy_article_fold/train_article_fold_{f}.csv"
+        csv_path = f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{f}.csv"
         train_dfs.append(pd.read_csv(csv_path))
     df_train = pd.concat(train_dfs).reset_index(drop=True)
-    df_val = pd.read_csv(f"/kaggle/input/datasets/andreikarabin/data10better/aspirantura/PROF/npy_article_fold/train_article_fold_{val_fold}.csv")
+    df_val = pd.read_csv(f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{val_fold}.csv")
     
     # Исправление путей
-    BASE_PATH = "/kaggle/input/datasets/andreikarabin/data10better/aspirantura/PROF/npy_article_fold"
+    BASE_PATH = "/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold"
     for df in [df_train, df_val]:
         df["image"] = df["image"].str.replace(r"D:.*npy_article_fold", BASE_PATH, regex=True)
         df["mask"] = df["mask"].str.replace(r"D:.*npy_article_fold", BASE_PATH, regex=True)
