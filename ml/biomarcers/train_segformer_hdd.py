@@ -50,6 +50,7 @@ def dice_score_fast(preds, targets, ignore_index=config.IGNORE_INDEX):
     return dice_sum / count
 
 def setup_ddp(rank, world_size):
+
     """Инициализация DDP"""
     dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
@@ -242,7 +243,7 @@ def train_fold(rank, world_size, train_folds, val_fold, patience=5):
 
 def main():
     # Параметры фолдов
-    FOLD = 3
+    FOLD = 1
     
     if FOLD == 1:
         train_folds = [1, 3]
@@ -256,6 +257,8 @@ def main():
     else:
         raise ValueError("FOLD должен быть 1, 2 или 3")
     
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
     world_size = torch.cuda.device_count()
     print(f"Запуск с {world_size} GPU")
     
