@@ -49,12 +49,20 @@ def dice_score_fast(preds, targets, ignore_index=config.IGNORE_INDEX):
         return 0.0
     return dice_sum / count
 
-def setup_ddp(rank, world_size):
+def reduce_tensor(tensor, world_size):
+    """Синхронизация тензора между всеми GPU"""
+    rt = tensor.clone()
+    dist.all_reduce(rt, op=dist.ReduceOp.SUM)
+    return rt / world_size
 
+def setup_ddp(rank, world_size):
     """Инициализация DDP"""
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
     dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
-    print(f"[GPU {rank}] Инициализирован")
+    if rank == 0:
+        print(f"[GPU {rank}] Инициализирован, всего GPU: {world_size}")
 
 def cleanup_ddp():
     """Очистка DDP"""
@@ -67,28 +75,57 @@ def train_fold(rank, world_size, train_folds, val_fold, patience=5):
     setup_ddp(rank, world_size)
     device = torch.device(f'cuda:{rank}')
     
-    # Загрузка данных
-    train_dfs = []
-    for f in train_folds:
-        csv_path = f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{f}.csv"
-        train_dfs.append(pd.read_csv(csv_path))
-    df_train = pd.concat(train_dfs).reset_index(drop=True)
-    df_val = pd.read_csv(f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{val_fold}.csv")
+    # Загрузка данных (только на rank 0 загружаем CSV, остальные получат через broadcast)
+    if rank == 0:
+        train_dfs = []
+        for f in train_folds:
+            csv_path = f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{f}.csv"
+            train_dfs.append(pd.read_csv(csv_path))
+        df_train = pd.concat(train_dfs).reset_index(drop=True)
+        df_val = pd.read_csv(f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{val_fold}.csv")
+        
+        # Исправление путей
+        BASE_PATH = "/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold"
+        for df in [df_train, df_val]:
+            df["image"] = df["image"].str.replace(r"D:.*npy_article_fold", BASE_PATH, regex=True)
+            df["mask"] = df["mask"].str.replace(r"D:.*npy_article_fold", BASE_PATH, regex=True)
+            df["image"] = df["image"].str.replace("\\", "/")
+            df["mask"] = df["mask"].str.replace("\\", "/")
+    else:
+        df_train = None
+        df_val = None
     
-    # Исправление путей
-    BASE_PATH = "/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold"
-    for df in [df_train, df_val]:
-        df["image"] = df["image"].str.replace(r"D:.*npy_article_fold", BASE_PATH, regex=True)
-        df["mask"] = df["mask"].str.replace(r"D:.*npy_article_fold", BASE_PATH, regex=True)
-        df["image"] = df["image"].str.replace("\\", "/")
-        df["mask"] = df["mask"].str.replace("\\", "/")
+    # Broadcast данных на все GPU
+    # Для простоты загружаем датасеты на каждом GPU отдельно (т.к. читаем из файлов)
+    # Но если данные общие, можно использовать broadcast
+    if rank != 0:
+        train_dfs = []
+        for f in train_folds:
+            csv_path = f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{f}.csv"
+            train_dfs.append(pd.read_csv(csv_path))
+        df_train = pd.concat(train_dfs).reset_index(drop=True)
+        df_val = pd.read_csv(f"/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold/train_article_fold_{val_fold}.csv")
+        
+        # Исправление путей
+        BASE_PATH = "/kaggle/input/datasets/andreikarabin/data-filter/aspirantura/PROF/npy_article_fold"
+        for df in [df_train, df_val]:
+            df["image"] = df["image"].str.replace(r"D:.*npy_article_fold", BASE_PATH, regex=True)
+            df["mask"] = df["mask"].str.replace(r"D:.*npy_article_fold", BASE_PATH, regex=True)
+            df["image"] = df["image"].str.replace("\\", "/")
+            df["mask"] = df["mask"].str.replace("\\", "/")
     
     # Датасеты
     train_dataset = ImageMaskDataset(df_train, augment_prob=0.5)
     val_dataset = ImageMaskDataset(df_val, augment_prob=0.0)
     
     # Sampler для DDP
-    train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
+    train_sampler = DistributedSampler(
+        train_dataset, 
+        num_replicas=world_size, 
+        rank=rank, 
+        shuffle=True,
+        drop_last=True  # Важно добавить для DDP
+    )
     
     # DataLoaders
     train_loader = DataLoader(
@@ -97,8 +134,10 @@ def train_fold(rank, world_size, train_folds, val_fold, patience=5):
         sampler=train_sampler,
         shuffle=False,
         num_workers=4, 
-        pin_memory=True
+        pin_memory=True,
+        drop_last=True  # Важно для DDP
     )
+    
     val_loader = DataLoader(
         val_dataset, 
         batch_size=config.BATCH_SIZE,
@@ -115,7 +154,7 @@ def train_fold(rank, world_size, train_folds, val_fold, patience=5):
     ).to(device)
     
     # Оборачиваем в DDP
-    model = DDP(model, device_ids=[rank])
+    model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     
     # Optimizer
     optimizer = torch.optim.AdamW([
@@ -143,6 +182,9 @@ def train_fold(rank, world_size, train_folds, val_fold, patience=5):
         checkpoint_dir = os.path.join(config.CHECKPOINT_DIR, f"fold_{val_fold}")
         os.makedirs(checkpoint_dir, exist_ok=True)
         print(f"Train Folds: {train_folds}, Val Fold: {val_fold}")
+        print(f"Batch size per GPU: {config.BATCH_SIZE}")
+        print(f"Effective batch size: {config.BATCH_SIZE * world_size}")
+        print(f"Number of training batches per GPU: {len(train_loader)}")
     
     for epoch in range(config.EPOCHS):
         # Важно: устанавливаем эпоху для sampler
@@ -152,6 +194,7 @@ def train_fold(rank, world_size, train_folds, val_fold, patience=5):
         running_loss = 0.0
         start_time = time.time()
         
+        # Синхронизация времени для всех GPU
         if rank == 0:
             loader_iter = tqdm(train_loader, desc=f"Epoch {epoch+1}", unit="batch")
         else:
@@ -177,34 +220,48 @@ def train_fold(rank, world_size, train_folds, val_fold, patience=5):
                 optimizer.zero_grad()
                 scheduler.step()
             
+            # Синхронизируем loss для отображения
             running_loss += loss.item() * gradient_accumulation_steps
+            
             if rank == 0:
                 loader_iter.set_postfix({"avg_loss": running_loss / (i+1)})
         
-        epoch_loss = running_loss / len(train_loader)
+        # Синхронизируем финальный loss между GPU для точности
+        loss_tensor = torch.tensor([running_loss / len(train_loader)]).to(device)
+        dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
+        epoch_loss = loss_tensor.item() / world_size
+        
         if rank == 0:
             print(f"Epoch {epoch+1} finished, Avg Loss: {epoch_loss:.4f}, Time: {time.time()-start_time:.1f}s")
         
-        # Валидация (только на rank 0)
+        # Валидация (с синхронизацией метрик между GPU)
+        model.eval()
+        all_dice = 0.0
+        count = 0
+        
+        for imgs, masks in val_loader:
+            imgs = imgs.to(device)
+            masks = masks.to(device)
+            with torch.no_grad():
+                outputs = model(pixel_values=imgs)
+                logits = outputs.logits if not isinstance(outputs, dict) else outputs['logits']
+                logits = F.interpolate(logits, masks.shape[-2:], mode="bilinear", align_corners=False)
+                
+                # Вычисляем Dice на каждом GPU
+                d = dice_score_fast(logits, masks)
+                
+                # Синхронизируем Dice между всеми GPU
+                d_tensor = torch.tensor([d]).to(device)
+                dist.all_reduce(d_tensor, op=dist.ReduceOp.SUM)
+                d_sync = d_tensor.item() / world_size
+                
+                all_dice += d_sync
+                count += 1
+        
+        avg_dice = all_dice / count
+        
+        # Только rank 0 выводит логи и сохраняет модели
         if rank == 0:
-            model.eval()
-            all_dice = 0.0
-            count = 0
-            val_iter = tqdm(val_loader, desc=f"Validation", unit="batch")
-            
-            for imgs, masks in val_iter:
-                imgs = imgs.to(device)
-                masks = masks.to(device)
-                with torch.no_grad():
-                    outputs = model(pixel_values=imgs)
-                    logits = outputs.logits if not isinstance(outputs, dict) else outputs['logits']
-                    logits = F.interpolate(logits, masks.shape[-2:], mode="bilinear", align_corners=False)
-                    d = dice_score_fast(logits, masks)
-                    all_dice += d
-                    count += 1
-                val_iter.set_postfix({"dice": all_dice / count})
-            
-            avg_dice = all_dice / count
             print(f"Validation Dice: {avg_dice:.4f}")
             
             # Сохранение чекпоинта
@@ -235,6 +292,9 @@ def train_fold(rank, world_size, train_folds, val_fold, patience=5):
             if epochs_no_improve >= patience:
                 print(f"Early stopping at epoch {epoch+1}")
                 break
+        
+        # Барьер для синхронизации всех процессов перед следующей эпохой
+        dist.barrier()
     
     if rank == 0:
         print(f"Training finished. Best Dice: {best_dice:.4f}")
@@ -257,8 +317,6 @@ def main():
     else:
         raise ValueError("FOLD должен быть 1, 2 или 3")
     
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
     world_size = torch.cuda.device_count()
     print(f"Запуск с {world_size} GPU")
     
