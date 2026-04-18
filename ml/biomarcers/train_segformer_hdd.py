@@ -301,7 +301,7 @@ if __name__ == "__main__":
     torch.multiprocessing.set_start_method("spawn", force=True)
 
     # Задаём фолд вручную
-    FOLD = 1
+    FOLD = 2
 
     # Определяем train и val фолды
     if FOLD == 1:
